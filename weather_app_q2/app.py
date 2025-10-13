@@ -1,13 +1,23 @@
+# app.py
+import os
 from flask import Flask
 from models import db
 from routes_main import bp as main_blueprint
 from routes_api import bp as api_blueprint
 
-# Sets up and configures the Flask application
 def create_app():
-    app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app = Flask(__name__, instance_relative_config=True)
+
+    # make sure instance exists so SQLite can write the DB file
+    os.makedirs(app.instance_path, exist_ok=True)
+
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        db_url = "sqlite:///" + os.path.join(app.instance_path, "weather.db")
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev")
 
     db.init_app(app)
     with app.app_context():
@@ -17,7 +27,8 @@ def create_app():
     app.register_blueprint(api_blueprint)
     return app
 
-# Runs the app
+app = create_app()
+
 if __name__ == "__main__":
-    app = create_app()
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
