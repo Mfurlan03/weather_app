@@ -1,0 +1,329 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather App</title>
+
+  <!-- I created the design to be as concise and user-friendly as possible-->
+  <style>
+    :root {
+      --border:#e5e7eb; --muted:#6b7280; --good:#065f46; --bad:#b91c1c;
+      --bg:#fafafa; --card:#ffffff;
+    }
+    html, body { margin:0; padding:0; background:var(--bg); color:#111; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .container { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .header h1 { margin: 0 0 4px; }
+    .subtle { color: var(--muted); margin: 0; }
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    @media (min-width: 900px) { .grid-2 { grid-template-columns: 2fr 1fr; } }
+
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+    .card h2 { margin-top:0; }
+    .row { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; font-size: 12px; }
+
+    input[type=text], input[type=date] { padding: 8px; font-size: 16px; width: 260px; max-width: 100%; }
+    button { padding: 8px 12px; font-size: 14px; cursor: pointer; border:1px solid var(--border); background:#fff; border-radius: 8px; }
+    button.primary { background:#111; color:#fff; border-color:#111; }
+
+    .error { color: var(--bad); background:#fff1f2; border:1px solid #fecdd3; padding:12px; border-radius: 8px; }
+    .muted { color: var(--muted); }
+    .metrics { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .metric { background:#f9fafb; border:1px solid var(--border); border-radius:10px; padding:10px; }
+
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid var(--border); text-align: left; padding: 8px; }
+    th { background:#f9fafb; }
+    td.actions > form { display:inline-block; margin:0; }
+
+    /* --- Modal styling for Info button --- */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; z-index:50; }
+    .modal { position:fixed; left:50%; top:20%; transform:translateX(-50%); background:#fff; border:1px solid var(--border);
+      border-radius:12px; max-width:560px; width:92%; padding:16px; display:none; z-index:51; }
+    .modal h3 { margin:0 0 8px; }
+    .modal p { margin:8px 0; color:#374151; line-height:1.45; }
+    .modal .row { justify-content:flex-end; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Page header -->
+    <header class="header">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <h1>Weather App: <span style="font-weight:500;">Michael Furlano</span></h1>
+          <p class="subtle">Enter a city, landmark, postal code, or coordinates (lat, lon). You can also use your current location!</p>
+        </div>
+        <div>
+          <button type="button" onclick="showInfo()">Info</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Shows any error messages here -->
+    {% if error %}
+      <div class="card error">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <!-- Search bar + "use my location" option -->
+    <section class="card">
+      <h2>Search</h2>
+      <div class="row">
+        <form method="POST" action="/search" class="row" style="gap:8px;">
+          <input name="q" type="text" placeholder="e.g., Toronto · CN Tower · 10001 · 43.65,-79.38" required />
+          <button type="submit" class="primary">Get Weather</button>
+        </form>
+        <button type="button" onclick="useMyLocation()">Use my location</button>
+        <button type="button" onclick="showInfo()">Info</button> 
+      </div>
+      <p class="muted" style="margin-top:8px;">
+        Tip: You can enter coordinates too! The app will convert them into a proper place name.
+      </p>
+    </section>
+
+    <div class="grid grid-2">
+
+      <!-- Weather section -->
+      <section class="card">
+        <h2>Current Weather</h2>
+
+        {% if weather %}
+          <div class="row" style="justify-content: space-between;">
+            <div>
+              <strong>{{ place }}</strong>
+              <span class="pill">as of {{ when }}</span>
+            </div>
+            <div><strong>{{ wmo }}</strong></div>
+          </div>
+
+          <div class="metrics" style="margin-top:12px;">
+            <div class="metric"><div class="muted">Temperature</div><div>{{ weather.current.temperature_2m }}°C</div></div>
+            <div class="metric"><div class="muted">Feels like</div><div>{{ weather.current.apparent_temperature }}°C</div></div>
+            <div class="metric"><div class="muted">Humidity</div><div>{{ weather.current.relative_humidity_2m }}%</div></div>
+            <div class="metric"><div class="muted">Wind</div><div>{{ weather.current.wind_speed_10m }} km/h</div></div>
+            <div class="metric"><div class="muted">Precipitation</div><div>{{ weather.current.precipitation }} mm</div></div>
+            <div class="metric"><div class="muted">UV Index</div><div>{{ weather.current.uv_index }}</div></div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <h3 style="margin:10px 0 6px;">Helpful Tips</h3>
+            <ul>{% for tip in tips %}<li>{{ tip }}</li>{% endfor %}</ul>
+          </div>
+
+          <div style="margin-top:14px;">
+            <h3 style="margin:10px 0 6px;">5-Day Forecast</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Summary</th>
+                  <th>Min</th>
+                  <th>Max</th>
+                  <th>Precip (mm)</th>
+                  <th>UV Max</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for i in range(0, weather.daily.time|length) %}
+                <tr>
+                  <td>{{ weather.daily.time[i] }}</td>
+                  <td>{{ wmo_daily[i] }}</td>
+                  <td>{{ weather.daily.temperature_2m_min[i] }}°C</td>
+                  <td>{{ weather.daily.temperature_2m_max[i] }}°C</td>
+                  <td>{{ weather.daily.precipitation_sum[i] }}</td>
+                  <td>{{ weather.daily.uv_index_max[i] }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if maps_lat and maps_lon %}
+          <div style="margin-top:14px;">
+            <h3 style="margin:10px 0 6px;">Map</h3>
+            <iframe width="100%" height="280" style="border:0; border-radius:8px;"
+              src="https://www.google.com/maps?q={{maps_lat}},{{maps_lon}}&z=11&output=embed" loading="lazy"></iframe>
+            <p class="muted" style="margin-top:6px;">
+              Explore more: <a target="_blank" href="https://www.youtube.com/results?search_query={{ place | urlencode }}+travel">YouTube search for {{ place }}</a>
+            </p>
+          </div>
+          {% endif %}
+        {% else %}
+          <p class="muted">Search for a location to see current conditions and the 5-day forecast.</p>
+        {% endif %}
+      </section>
+
+      <!-- Saved locations sidebar -->
+      <aside class="card">
+        <h2>Saved Locations</h2>
+
+        <form method="POST" action="/locations" class="row" style="gap:8px; margin-bottom:8px;">
+          <input name="name" placeholder="Label (e.g., Home, Trip: Paris)" required />
+          <input name="q" placeholder="City, landmark, or lat,lon" required />
+          <button type="submit">Save</button>
+        </form>
+
+        {% if locations and locations|length %}
+          <table>
+            <thead>
+              <tr>
+                <th style="width:42%;">Name</th>
+                <th>Lat</th>
+                <th>Lon</th>
+                <th style="width:28%;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for loc in locations %}
+              <tr>
+                <td>
+                  <form method="POST" action="/locations/{{loc.id}}/update" class="row" style="gap:6px;">
+                    <input name="name" value="{{loc.name}}" />
+                    <button type="submit">Rename</button>
+                  </form>
+                </td>
+                <td>{{ '%.4f'|format(loc.latitude) }}</td>
+                <td>{{ '%.4f'|format(loc.longitude) }}</td>
+                <td class="actions">
+                  <a href="/locations/{{loc.id}}/weather"><button type="button">View Weather</button></a>
+                  <form method="POST" action="/locations/{{loc.id}}/delete" style="display:inline;">
+                    <button type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">No saved locations yet, add one above!</p>
+        {% endif %}
+      </aside>
+    </div>
+
+    <!-- Historical range requests -->
+    <section class="card" style="margin-top:16px;">
+      <h2>Historical Range</h2>
+      <form method="POST" action="/requests" class="row" style="gap:8px; flex-wrap:wrap;">
+        <input name="name" placeholder="Label (e.g., Toronto in Sept)" required />
+        <input name="q" placeholder="City or lat,lon" required />
+        <input name="start_date" type="date" required />
+        <input name="end_date" type="date" required />
+        <button type="submit" class="primary">Create</button>
+        <a href="/api/exports/summary.json"><button type="button">Summary JSON</button></a>
+        <a href="/api/exports/summary.csv"><button type="button">Summary CSV</button></a>
+        <a href="/api/exports/summary.md"><button type="button">Summary MD</button></a>
+        <a href="/api/exports/daily.json"><button type="button">Daily JSON</button></a>
+        <a href="/api/exports/daily.csv"><button type="button">Daily CSV</button></a>
+        <a href="/api/exports/daily.md"><button type="button">Daily MD</button></a>
+      </form>
+
+      {% if requests_list and requests_list|length %}
+        <table style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th style="width:24%;">Name</th>
+              <th>Place</th>
+              <th>Start</th>
+              <th>End</th>
+              <th style="width:26%;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in requests_list %}
+            <tr>
+              <td>
+                <form method="POST" action="/requests/{{r.id}}/update" class="row" style="gap:6px;">
+                  <input name="name" value="{{r.name}}" />
+                  <button type="submit">Rename</button>
+                </form>
+              </td>
+              <td>{{ r.display_name }}</td>
+              <td>
+                <form method="POST" action="/requests/{{r.id}}/update" class="row" style="gap:6px;">
+                  <input type="date" name="start_date" value="{{ r.start_date }}" />
+                  <button type="submit">Update</button>
+                </form>
+              </td>
+              <td>
+                <form method="POST" action="/requests/{{r.id}}/update" class="row" style="gap:6px;">
+                  <input type="date" name="end_date" value="{{ r.end_date }}" />
+                  <button type="submit">Update</button>
+                </form>
+              </td>
+              <td class="actions">
+                <a href="/api/requests/{{r.id}}"><button type="button">View JSON</button></a>
+                <form method="POST" action="/requests/{{r.id}}/delete" style="display:inline;">
+                  <button type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted" style="margin-top:8px;">No historical requests yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- Info about PM Accelerator -->
+  <div id="infoOverlay" class="modal-overlay" onclick="hideInfo()"></div>
+  <div id="infoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <h3 id="infoTitle">About PM Accelerator</h3>
+    <p>
+      PM Accelerator (Product Manager Accelerator) is a training and community program for aspiring and current Product Managers.
+      It offers cohort-based learning, hands-on projects, mentorship, interview prep, and a global network to help you land PM roles
+      and grow faster.
+    </p>
+    <p>
+      Learn more on LinkedIn:
+      <a href="https://www.linkedin.com/school/pmaccelerator/" target="_blank" rel="noopener">
+        Product Manager Accelerator
+      </a>
+    </p>
+    <div class="row"><button type="button" onclick="hideInfo()">Close</button></div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    function useMyLocation() {
+      if (!navigator.geolocation) {
+        alert("Your browser doesn't support geolocation — try typing instead!");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          const form = new FormData();
+          form.append('lat', latitude);
+          form.append('lon', longitude);
+
+          const resp = await fetch('/use-my-location', { method: 'POST', body: form });
+          const data = await resp.json();
+
+          if (data.redirect) window.location = data.redirect;
+          else if (data.error) alert(data.error);
+        },
+        (err) => {
+          alert('Could not access location: ' + err.message);
+        }
+      );
+    }
+
+    // Opens and closes the info about PM Accelerator
+    function showInfo() {
+      document.getElementById('infoOverlay').style.display = 'block';
+      document.getElementById('infoModal').style.display = 'block';
+    }
+    function hideInfo() {
+      document.getElementById('infoOverlay').style.display = 'none';
+      document.getElementById('infoModal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
