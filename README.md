@@ -17,9 +17,11 @@ Together, these apps demonstrate my ability to combine backend logic, API data h
 
 ## How to Run
 
-### 1. Clone or unzip the project
+### 1. Pick an assessment folder
 ```bash
-cd path/to/weather_app
+cd weather_app_q1   # Tech Assessment 1 (live weather)
+# or
+cd weather_app_q2   # Tech Assessment 2 (CRUD, persistence, export)
 ```
 
 ### 2. (Optional) Create a virtual environment
